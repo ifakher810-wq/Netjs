@@ -1,0 +1,65 @@
+name: ARIZNODES
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 */6 * * *'
+
+permissions:
+  contents: write
+
+jobs:
+  Build-VPS:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repo (Loading saved files)
+        uses: actions/checkout@v4
+
+      - name: Setup sshx VPS
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl
+
+          # Install sshx
+          curl -sSf https://sshx.io/get | sh -s -- -y >/dev/null 2>&1 || \
+          curl -sSf https://sshx.io/get | bash
+
+          # Make sure sshx is on PATH
+          export PATH="$HOME/.local/bin:$PATH"
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+          echo "====================================="
+          echo "STARTING SSHX SESSION..."
+          echo "====================================="
+
+          # Start sshx in background, capture the share link
+          sshx -q > /tmp/sshx_url.txt 2>&1 &
+          sleep 8
+
+          SSHX_URL=$(grep -o 'https://sshx.io/s/[A-Za-z0-9#/_-]*' /tmp/sshx_url.txt | head -n1)
+
+          echo "====================================="
+          echo "YOUR VPS LINK IS:"
+          echo "$SSHX_URL"
+          echo "====================================="
+          echo "Open the link above in your browser to get a full terminal."
+          echo "Save your files in the repository folder to keep them forever!"
+
+      - name: Auto-Backup Loop (Saves files every 30 mins)
+        run: |
+          (
+            while true; do
+              sleep 1800
+              cd $GITHUB_WORKSPACE
+              git config user.name "VPS Auto-Saver"
+              git config user.email "vps@autosaver.com"
+              git add .
+              git commit -m "Auto-backup of VPS files at $(date)" || echo "Nothing new to save."
+              git push || echo "Push failed, will try again later."
+            done
+          ) &
+
+      - name: Keep Alive (Max 5h 50m)
+        run: |
+          echo "VPS is running. Sleeping to keep it alive..."
+          sleep 350m
