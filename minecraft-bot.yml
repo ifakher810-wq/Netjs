@@ -1,0 +1,50 @@
+
+name: Minecraft 24/7 AFK Bot
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: minecraft-afk-bot
+  cancel-in-progress: true
+
+jobs:
+  minecraft-bot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Bot Dependencies
+        run: |
+          npm init -y
+          npm install mineflayer
+
+      - name: Verify Bot File
+        run: |
+          test -f bot.js || {
+            echo "ERROR: bot.js file is missing"
+            exit 1
+          }
+
+      - name: Start Minecraft AFK Bot
+        run: |
+          echo "Starting Minecraft Bot..."
+          node bot.js
+
+      - name: Show Completion
+        if: always()
+        run: echo "Minecraft Bot workflow finished."
