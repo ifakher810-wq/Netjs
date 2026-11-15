@@ -1,17 +1,13 @@
-name: Minecraft 24/7 AFK Bot
+
+name: Minecraft AFK Bot
 
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
   contents: read
-
-concurrency:
-  group: minecraft-afk-bot
-  cancel-in-progress: true
 
 jobs:
   minecraft-bot:
@@ -19,32 +15,122 @@ jobs:
     timeout-minutes: 350
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install Bot Dependencies
+      - name: Install Dependencies
         run: |
           npm init -y
           npm install mineflayer
 
-      - name: Verify Bot File
+      - name: Create Bot
         run: |
-          test -f bot.js || {
-            echo "ERROR: bot.js file is missing"
-            exit 1
+          cat > bot.js <<'EOF'
+          const mineflayer = require('mineflayer');
+
+          const CONFIG = {
+            host: 'FAKELAPATA1.aternos.me',
+            port: 26176,
+            username: 'LapataAFK',
+            version: '1.21',
+            password: '125PRO12567890'
+          };
+
+          let registered = false;
+          let reconnectTimer;
+
+          function connect() {
+            let authenticated = false;
+            let playing = false;
+            let bot;
+
+            bot = mineflayer.createBot({
+              host: CONFIG.host,
+              port: CONFIG.port,
+              username: CONFIG.username,
+              version: CONFIG.version
+            });
+
+            bot.once('spawn', () => {
+              console.log('Bot joined');
+
+              setTimeout(() => {
+                if (!registered) {
+                  bot.chat(
+                    `/register ${CONFIG.password} ${CONFIG.password}`
+                  );
+                } else {
+                  bot.chat(`/login ${CONFIG.password}`);
+                }
+              }, 5000);
+            });
+
+            function startPlaying() {
+              if (playing) return;
+              playing = true;
+              authenticated = true;
+
+              setTimeout(() => {
+                if (bot.entity && authenticated) {
+                  bot.chat('Hi Hi ٹھیک ہے');
+                }
+              }, 5000);
+
+              setInterval(() => {
+                if (!bot.entity || !authenticated) return;
+
+                bot.setControlState('forward', true);
+
+                setTimeout(() => {
+                  if (!bot.entity) return;
+                  bot.setControlState('forward', false);
+                  bot.setControlState('jump', true);
+
+                  setTimeout(() => {
+                    if (bot.entity) {
+                      bot.setControlState('jump', false);
+                    }
+                  }, 500);
+                }, 2000);
+              }, 10000);
+            }
+
+            bot.on('messagestr', message => {
+              const msg = message.toLowerCase();
+
+              if (
+                msg.includes('already registered') ||
+                msg.includes('successfully registered') ||
+                msg.includes('registration successful')
+              ) {
+                registered = true;
+              }
+
+              if (
+                msg.includes('successfully logged') ||
+                msg.includes('logged in successfully') ||
+                msg.includes('you are now logged')
+              ) {
+                registered = true;
+                startPlaying();
+              }
+            });
+
+            bot.on('end', () => {
+              authenticated = false;
+              console.log('Disconnected. Rejoining in 10 seconds...');
+              clearTimeout(reconnectTimer);
+              reconnectTimer = setTimeout(connect, 10000);
+            });
+
+            bot.on('error', console.log);
           }
 
-      - name: Start Minecraft AFK Bot
-        run: |
-          echo "Starting Minecraft Bot..."
-          node bot.js
+          connect();
+          EOF
 
-      - name: Show Completion
-        if: always()
-        run: echo "Minecraft Bot workflow finished."
+      - name: Start Minecraft Bot
+        run: node bot.js
         
